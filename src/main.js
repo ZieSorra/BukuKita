@@ -1,53 +1,37 @@
 import './style.css';
-import { auth } from './lib/auth.js';
-import { getCurrentProfile } from './lib/profile.js';
+import { createAppShell } from './components/AppShell.js';
+import { sessionStore } from './lib/session.js';
 
 const app = document.querySelector('#app');
+let currentPath = window.location.pathname;
+let isDrawerOpen = false;
+let latestState = sessionStore.getState();
+let redirectAfterLogin = false;
 
-let currentSession = null;
-let currentProfile = null;
-let profileState = 'idle';
-let profileError = null;
-let viewState = 'loading';
-let feedback = null;
-
-function render() {
-  app.innerHTML = '';
-
-  const shell = document.createElement('main');
-  shell.className = 'app-shell';
-
-  const header = document.createElement('header');
-  header.className = 'topbar';
-  header.innerHTML = `
-    <a class="brand" href="/" aria-label="BukuKita beranda">
-      <span class="brand-mark" aria-hidden="true">BK</span>
-      <span>BukuKita</span>
-    </a>
-    <span class="environment-pill">Authentication</span>
-  `;
-  shell.append(header);
-
-  if (viewState === 'loading') {
-    shell.append(createStatusSection('Memeriksa sesi', 'Menyiapkan ruang kerja BukuKita...'));
-  } else if (viewState === 'authenticated' && currentSession?.user) {
-    shell.append(createAuthenticatedSection(currentSession.user, currentProfile));
-  } else if (viewState === 'configuration-error') {
-    shell.append(createStatusSection('Konfigurasi diperlukan', feedback.message, 'error'));
-  } else {
-    shell.append(createLoginSection());
+function normalizePath(pathname) {
+  if (pathname === '/') {
+    return '/';
   }
 
-  const footer = document.createElement('footer');
-  footer.className = 'footer';
-  footer.innerHTML = '<span>BUKUKITA</span><span>Fondasi autentikasi</span>';
-  shell.append(footer);
-  app.append(shell);
+  return pathname.replace(/\/$/, '') || '/';
 }
 
-function createStatusSection(title, message, type = '') {
+function navigate(path) {
+  if (currentPath === path) {
+    isDrawerOpen = false;
+    render();
+    return;
+  }
+
+  window.history.pushState({}, '', path);
+  currentPath = path;
+  isDrawerOpen = false;
+  render();
+}
+
+function createStatusPage(title, message, type = '') {
   const section = document.createElement('section');
-  section.className = `welcome status-page ${type}`;
+  section.className = `standalone-page ${type}`;
   section.setAttribute('aria-live', 'polite');
 
   const eyebrow = document.createElement('p');
@@ -58,29 +42,16 @@ function createStatusSection(title, message, type = '') {
   heading.textContent = title;
 
   const copy = document.createElement('p');
-  copy.className = 'welcome-copy';
+  copy.className = 'page-copy';
   copy.textContent = message;
 
   section.append(eyebrow, heading, copy);
   return section;
 }
 
-function createLoginSection() {
-  const section = document.createElement('section');
-  section.className = 'welcome auth-section';
-  section.setAttribute('aria-labelledby', 'login-title');
-
-  const eyebrow = document.createElement('p');
-  eyebrow.className = 'eyebrow';
-  eyebrow.textContent = 'Perpustakaan sekolah';
-
-  const heading = document.createElement('h1');
-  heading.id = 'login-title';
-  heading.textContent = 'Masuk ke BukuKita.';
-
-  const copy = document.createElement('p');
-  copy.className = 'welcome-copy';
-  copy.textContent = 'Gunakan akun yang terdaftar untuk melanjutkan ke ruang kerja perpustakaan.';
+function createLoginPage(errorMessage = '') {
+  const section = createStatusPage('Masuk ke BukuKita.', 'Gunakan akun yang terdaftar untuk melanjutkan ke ruang kerja perpustakaan.');
+  section.className = 'standalone-page login-page';
 
   const form = document.createElement('form');
   form.className = 'auth-form';
@@ -93,182 +64,128 @@ function createLoginSection() {
     <button type="submit">Masuk</button>
   `;
 
-  if (feedback) {
-    const feedbackElement = document.createElement('p');
-    feedbackElement.className = `feedback ${feedback.type}`;
-    feedbackElement.setAttribute('role', feedback.type === 'error' ? 'alert' : 'status');
-    feedbackElement.textContent = feedback.message;
-    form.append(feedbackElement);
+  if (errorMessage) {
+    const feedback = document.createElement('p');
+    feedback.className = 'feedback error';
+    feedback.setAttribute('role', 'alert');
+    feedback.textContent = errorMessage;
+    form.append(feedback);
   }
 
-  form.addEventListener('submit', handleSignIn);
-  section.append(eyebrow, heading, copy, form);
-  return section;
-}
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const email = form.elements.email.value.trim();
+    const password = form.elements.password.value;
+    const button = form.querySelector('button');
 
-function createAuthenticatedSection(user, profile) {
-  const section = document.createElement('section');
-  section.className = 'welcome auth-section';
-  section.setAttribute('aria-labelledby', 'authenticated-title');
+    if (!email || !password) {
+      render(currentPath, 'Email dan password wajib diisi.');
+      return;
+    }
 
-  const eyebrow = document.createElement('p');
-  eyebrow.className = 'eyebrow';
-  eyebrow.textContent = 'Autentikasi berhasil';
-
-  const heading = document.createElement('h1');
-  heading.id = 'authenticated-title';
-  heading.textContent = 'Selamat datang kembali.';
-
-  const copy = document.createElement('p');
-  copy.className = 'welcome-copy';
-  copy.textContent = 'Sesi Supabase aktif. Modul aplikasi akan tersedia pada sprint berikutnya.';
-
-  const userPanel = document.createElement('div');
-  userPanel.className = 'user-panel';
-  userPanel.innerHTML = '<span class="user-label">Akun aktif</span>';
-
-  const email = document.createElement('strong');
-  email.textContent = user.email || 'Email tidak tersedia';
-  userPanel.append(email);
-
-  if (profileState === 'loading') {
-    const profileLoading = document.createElement('span');
-    profileLoading.className = 'profile-detail';
-    profileLoading.textContent = 'Memuat profile...';
-    userPanel.append(profileLoading);
-  } else if (profile) {
-    const name = document.createElement('span');
-    name.className = 'profile-detail';
-    name.textContent = `Nama: ${profile.full_name}`;
-
-    const role = document.createElement('span');
-    role.className = 'profile-detail';
-    role.textContent = `Role: ${profile.role}`;
-    userPanel.append(name, role);
-  }
-
-  const logoutButton = document.createElement('button');
-  logoutButton.className = 'secondary-button';
-  logoutButton.type = 'button';
-  logoutButton.textContent = 'Keluar';
-  logoutButton.addEventListener('click', handleSignOut);
-
-  if (profileError) {
-    const profileFeedback = document.createElement('p');
-    profileFeedback.className = 'feedback error';
-    profileFeedback.setAttribute('role', 'alert');
-    profileFeedback.textContent = `Profile tidak dapat digunakan: ${profileError.message}`;
-    section.append(profileFeedback);
-  } else if (feedback) {
-    const feedbackElement = document.createElement('p');
-    feedbackElement.className = `feedback ${feedback.type}`;
-    feedbackElement.setAttribute('role', feedback.type === 'error' ? 'alert' : 'status');
-    feedbackElement.textContent = feedback.message;
-    section.append(feedbackElement);
-  }
-
-  section.append(eyebrow, heading, copy, userPanel, logoutButton);
-  return section;
-}
-
-async function handleSignIn(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const email = form.elements.email.value.trim();
-  const password = form.elements.password.value;
-
-  if (!email || !password) {
-    feedback = { type: 'error', message: 'Email dan password wajib diisi.' };
-    render();
-    return;
-  }
-
-  setLoading(form, true);
-  feedback = null;
-  const { error } = await auth.signIn(email, password);
-
-  if (error) {
-    setLoading(form, false);
-    feedback = { type: 'error', message: 'Email atau password tidak valid.' };
-    render();
-  }
-}
-
-async function handleSignOut() {
-  viewState = 'loading';
-  currentProfile = null;
-  profileState = 'idle';
-  profileError = null;
-  feedback = null;
-  render();
-  const { error } = await auth.signOut();
-
-  if (error) {
-    viewState = 'authenticated';
-    feedback = { type: 'error', message: 'Gagal keluar. Silakan coba lagi.' };
-    render();
-  }
-}
-
-function setLoading(form, isLoading) {
-  const button = form.querySelector('button');
-  button.disabled = isLoading;
-  button.textContent = isLoading ? 'Memproses...' : 'Masuk';
-}
-
-async function loadCurrentProfile() {
-  profileState = 'loading';
-  profileError = null;
-  currentProfile = null;
-  render();
-
-  const { profile, error } = await getCurrentProfile();
-  if (viewState !== 'authenticated') {
-    return;
-  }
-
-  currentProfile = profile;
-  profileError = error;
-  profileState = profile ? 'ready' : 'error';
-  render();
-}
-
-async function initializeAuth() {
-  if (!auth.isConfigured) {
-    viewState = 'configuration-error';
-    feedback = { message: 'Tambahkan VITE_SUPABASE_URL dan VITE_SUPABASE_ANON_KEY ke file .env.' };
-    render();
-    return;
-  }
-
-  auth.onAuthStateChange((_event, session) => {
-    currentSession = session;
-    viewState = session ? 'authenticated' : 'unauthenticated';
-    currentProfile = null;
-    profileState = session ? 'loading' : 'idle';
-    profileError = null;
-    feedback = null;
-    render();
-
-    if (session) {
-      loadCurrentProfile();
+    button.disabled = true;
+    button.textContent = 'Memproses...';
+    redirectAfterLogin = true;
+    const { error } = await sessionStore.signIn(email, password);
+    if (error) {
+      redirectAfterLogin = false;
+      render('/', 'Email atau password tidak valid.');
     }
   });
 
-  const { session, error } = await auth.getSession();
-  if (error) {
-    viewState = 'unauthenticated';
-    feedback = { type: 'error', message: 'Sesi tidak dapat diperiksa. Silakan coba lagi.' };
-  } else {
-    currentSession = session;
-    viewState = session ? 'authenticated' : 'unauthenticated';
-  }
-  render();
+  section.append(form);
+  return section;
+}
 
-  if (session) {
-    await loadCurrentProfile();
+function createBlockedPage(state) {
+  const message = state.error?.message ?? 'Profile user tidak dapat digunakan.';
+  const section = createStatusPage('Akses diblokir.', message, 'error');
+  const logoutButton = document.createElement('button');
+  logoutButton.type = 'button';
+  logoutButton.textContent = 'Keluar';
+  logoutButton.addEventListener('click', () => sessionStore.signOut());
+  section.append(logoutButton);
+  return section;
+}
+
+function render(path = currentPath, feedback = '') {
+  if (path !== currentPath) {
+    currentPath = path;
+  }
+
+  app.innerHTML = '';
+  const state = latestState;
+
+  if (state.status === 'loading' || state.status === 'profile-loading') {
+    app.append(createStatusPage('Memeriksa sesi', 'Menyiapkan ruang kerja BukuKita...'));
+    return;
+  }
+
+  if (state.status === 'blocked') {
+    app.append(createBlockedPage(state));
+    return;
+  }
+
+  if (state.status === 'error') {
+    app.append(createStatusPage('Sesi tidak tersedia', 'Sesi tidak dapat diperiksa. Silakan muat ulang halaman.', 'error'));
+    return;
+  }
+
+  if (state.status === 'unauthenticated') {
+    app.append(createLoginPage(feedback));
+    return;
+  }
+
+  if (currentPath === '/') {
+    navigate('/dashboard');
+    return;
+  }
+
+  app.append(createAppShell({
+    profile: state.profile,
+    currentPath,
+    isDrawerOpen,
+    onNavigate: navigate,
+    onMenuClick: () => {
+      isDrawerOpen = true;
+      render();
+    },
+    onClose: () => {
+      isDrawerOpen = false;
+      render();
+    },
+    onLogout: async () => {
+      await sessionStore.signOut();
+    },
+  }));
+}
+
+function handlePopState() {
+  currentPath = normalizePath(window.location.pathname);
+  isDrawerOpen = false;
+  render();
+}
+
+function handleKeyDown(event) {
+  if (event.key === 'Escape' && isDrawerOpen) {
+    isDrawerOpen = false;
+    render();
   }
 }
 
+sessionStore.subscribe((state) => {
+  latestState = state;
+  if (state.status === 'authenticated' && (redirectAfterLogin || currentPath === '/')) {
+    redirectAfterLogin = false;
+    navigate('/dashboard');
+    return;
+  }
+  render();
+});
+
+window.addEventListener('popstate', handlePopState);
+window.addEventListener('keydown', handleKeyDown);
+
+currentPath = normalizePath(window.location.pathname);
 render();
-initializeAuth();
+sessionStore.initialize();
