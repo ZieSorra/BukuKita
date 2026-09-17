@@ -1,9 +1,13 @@
 import './style.css';
 import { auth } from './lib/auth.js';
+import { getCurrentProfile } from './lib/profile.js';
 
 const app = document.querySelector('#app');
 
 let currentSession = null;
+let currentProfile = null;
+let profileState = 'idle';
+let profileError = null;
 let viewState = 'loading';
 let feedback = null;
 
@@ -27,7 +31,7 @@ function render() {
   if (viewState === 'loading') {
     shell.append(createStatusSection('Memeriksa sesi', 'Menyiapkan ruang kerja BukuKita...'));
   } else if (viewState === 'authenticated' && currentSession?.user) {
-    shell.append(createAuthenticatedSection(currentSession.user));
+    shell.append(createAuthenticatedSection(currentSession.user, currentProfile));
   } else if (viewState === 'configuration-error') {
     shell.append(createStatusSection('Konfigurasi diperlukan', feedback.message, 'error'));
   } else {
@@ -102,7 +106,7 @@ function createLoginSection() {
   return section;
 }
 
-function createAuthenticatedSection(user) {
+function createAuthenticatedSection(user, profile) {
   const section = document.createElement('section');
   section.className = 'welcome auth-section';
   section.setAttribute('aria-labelledby', 'authenticated-title');
@@ -122,9 +126,26 @@ function createAuthenticatedSection(user) {
   const userPanel = document.createElement('div');
   userPanel.className = 'user-panel';
   userPanel.innerHTML = '<span class="user-label">Akun aktif</span>';
+
   const email = document.createElement('strong');
   email.textContent = user.email || 'Email tidak tersedia';
   userPanel.append(email);
+
+  if (profileState === 'loading') {
+    const profileLoading = document.createElement('span');
+    profileLoading.className = 'profile-detail';
+    profileLoading.textContent = 'Memuat profile...';
+    userPanel.append(profileLoading);
+  } else if (profile) {
+    const name = document.createElement('span');
+    name.className = 'profile-detail';
+    name.textContent = `Nama: ${profile.full_name}`;
+
+    const role = document.createElement('span');
+    role.className = 'profile-detail';
+    role.textContent = `Role: ${profile.role}`;
+    userPanel.append(name, role);
+  }
 
   const logoutButton = document.createElement('button');
   logoutButton.className = 'secondary-button';
@@ -132,7 +153,13 @@ function createAuthenticatedSection(user) {
   logoutButton.textContent = 'Keluar';
   logoutButton.addEventListener('click', handleSignOut);
 
-  if (feedback) {
+  if (profileError) {
+    const profileFeedback = document.createElement('p');
+    profileFeedback.className = 'feedback error';
+    profileFeedback.setAttribute('role', 'alert');
+    profileFeedback.textContent = `Profile tidak dapat digunakan: ${profileError.message}`;
+    section.append(profileFeedback);
+  } else if (feedback) {
     const feedbackElement = document.createElement('p');
     feedbackElement.className = `feedback ${feedback.type}`;
     feedbackElement.setAttribute('role', feedback.type === 'error' ? 'alert' : 'status');
@@ -169,6 +196,9 @@ async function handleSignIn(event) {
 
 async function handleSignOut() {
   viewState = 'loading';
+  currentProfile = null;
+  profileState = 'idle';
+  profileError = null;
   feedback = null;
   render();
   const { error } = await auth.signOut();
@@ -186,6 +216,23 @@ function setLoading(form, isLoading) {
   button.textContent = isLoading ? 'Memproses...' : 'Masuk';
 }
 
+async function loadCurrentProfile() {
+  profileState = 'loading';
+  profileError = null;
+  currentProfile = null;
+  render();
+
+  const { profile, error } = await getCurrentProfile();
+  if (viewState !== 'authenticated') {
+    return;
+  }
+
+  currentProfile = profile;
+  profileError = error;
+  profileState = profile ? 'ready' : 'error';
+  render();
+}
+
 async function initializeAuth() {
   if (!auth.isConfigured) {
     viewState = 'configuration-error';
@@ -197,8 +244,15 @@ async function initializeAuth() {
   auth.onAuthStateChange((_event, session) => {
     currentSession = session;
     viewState = session ? 'authenticated' : 'unauthenticated';
+    currentProfile = null;
+    profileState = session ? 'loading' : 'idle';
+    profileError = null;
     feedback = null;
     render();
+
+    if (session) {
+      loadCurrentProfile();
+    }
   });
 
   const { session, error } = await auth.getSession();
@@ -210,6 +264,10 @@ async function initializeAuth() {
     viewState = session ? 'authenticated' : 'unauthenticated';
   }
   render();
+
+  if (session) {
+    await loadCurrentProfile();
+  }
 }
 
 render();

@@ -190,6 +190,11 @@ button:disabled {
   font-size: 1rem;
 }
 
+.profile-detail {
+  color: #52645a;
+  font-size: 0.9rem;
+}
+
 .feedback {
   margin: 8px 0 0;
   font-size: 0.88rem;
