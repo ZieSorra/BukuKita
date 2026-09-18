@@ -1,6 +1,7 @@
 import { createHeader } from './Header.js';
 import { createSidebar } from './Sidebar.js';
 import { createDashboardPage } from '../pages/DashboardPage.js';
+import { createMembersPage } from '../pages/MembersPage.js';
 import { getNavigationForRole, getRoute, isRouteAllowed } from '../navigation/navigation.js';
 
 function createMessagePage(title, message, type = '') {
@@ -31,6 +32,10 @@ function createPageContent(path, profile) {
 
   if (path === '/dashboard') {
     return createDashboardPage(profile);
+  }
+
+  if (path === '/members') {
+    return createMembersPage(profile);
   }
 
   return createMessagePage(route.title, 'Modul ini akan tersedia pada sprint berikutnya.', 'empty');

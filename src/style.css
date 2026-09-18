@@ -472,6 +472,215 @@ button:disabled {
   padding-top: 8vh;
 }
 
+.members-controls {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.5fr) repeat(2, minmax(150px, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+  margin-top: 34px;
+}
+
+.members-controls label {
+  display: grid;
+  gap: 7px;
+  color: #52645a;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.members-controls input,
+.members-controls select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid rgba(46, 93, 71, 0.24);
+  border-radius: 6px;
+  color: #17221d;
+  background: rgba(255, 255, 255, 0.72);
+  font: inherit;
+  text-transform: none;
+}
+
+.members-controls input:focus,
+.members-controls select:focus {
+  outline: 2px solid rgba(189, 123, 36, 0.55);
+  outline-offset: 2px;
+}
+
+.members-status {
+  margin: 24px 0 0;
+  color: #52645a;
+  font-size: 0.9rem;
+}
+
+.members-status.success {
+  color: #3e9360;
+}
+
+.members-status.error {
+  color: #a34735;
+}
+
+.members-status.empty {
+  padding: 28px 0;
+}
+
+.members-table-wrapper {
+  margin-top: 16px;
+  overflow-x: auto;
+  border: 1px solid rgba(46, 93, 71, 0.13);
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.members-table-wrapper table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.members-table-wrapper th,
+.members-table-wrapper td {
+  padding: 14px 12px;
+  border-bottom: 1px solid rgba(46, 93, 71, 0.1);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.members-table-wrapper th {
+  color: #52645a;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.members-table-wrapper tr:last-child td {
+  border-bottom: 0;
+}
+
+.member-status-pill {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.member-status-pill.is-active {
+  color: #28653e;
+  background: rgba(62, 147, 96, 0.14);
+}
+
+.member-status-pill.is-inactive {
+  color: #8d4a38;
+  background: rgba(163, 71, 53, 0.12);
+}
+
+.member-detail-button {
+  margin: 0;
+  padding: 7px 10px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.members-cards {
+  display: none;
+}
+
+.member-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 22px;
+}
+
+.member-pagination button {
+  min-width: 38px;
+  margin: 0;
+  padding: 9px 11px;
+  color: #2e5d47;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(46, 93, 71, 0.3);
+}
+
+.member-pagination button.is-current,
+.member-pagination button:hover:not(:disabled) {
+  color: #f6f7ef;
+  background: #2e5d47;
+}
+
+.member-back-button {
+  margin: 0 0 26px;
+}
+
+.member-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin: 34px 0 0;
+  border: 1px solid rgba(46, 93, 71, 0.13);
+  background: rgba(46, 93, 71, 0.13);
+}
+
+.member-detail-field {
+  margin: 0;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.member-detail-field dt {
+  color: #52645a;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.member-detail-field dd {
+  margin: 8px 0 0;
+  color: #1a3326;
+  font-size: 1rem;
+}
+
+.member-card {
+  padding: 18px;
+  border: 1px solid rgba(46, 93, 71, 0.13);
+  background: rgba(255, 255, 255, 0.48);
+}
+
+.member-card-heading {
+  display: grid;
+  gap: 5px;
+}
+
+.member-card-heading strong {
+  color: #1a3326;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+.member-card-heading span {
+  color: #bd7b24;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.member-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+
+.member-card .member-detail-field {
+  padding: 0;
+  background: transparent;
+}
+
+.member-card .member-detail-field dd {
+  font-size: 0.9rem;
+}
+
 .login-page {
   margin: 0 auto;
 }
@@ -482,6 +691,10 @@ button:disabled {
 
 @media (max-width: 900px) {
   .dashboard-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .members-controls {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -575,6 +788,28 @@ button:disabled {
   }
 
   .dashboard-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .members-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .members-controls button {
+    width: 100%;
+  }
+
+  .members-table-wrapper {
+    display: none;
+  }
+
+  .members-cards {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .member-detail-grid {
     grid-template-columns: 1fr;
   }
 }
