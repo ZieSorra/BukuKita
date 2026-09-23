@@ -1,6 +1,6 @@
 import { isSupabaseConfigured, supabase } from '../supabase.js';
 
-const MEMBER_TYPES = new Set(['siswa', 'guru', 'petugas']);
+const MEMBER_TYPES = new Set(['siswa', 'admin']);
 const MEMBER_STATUSES = new Set(['active', 'inactive']);
 const MEMBER_COLUMNS = [
   'id',
@@ -12,7 +12,7 @@ const MEMBER_COLUMNS = [
   'created_at',
   'updated_at',
   'profile:profiles(id, full_name, role, status)',
-  'student:students(member_id, nis, class_name, academic_year:academic_years(id, name))',
+  'student:students(member_id, full_name, nis, class_name, academic_year:academic_years(id, name))',
 ].join(', ');
 
 function unavailable(message) {
@@ -42,18 +42,56 @@ function quoteInValues(values) {
 
 async function findSearchIds(search) {
   const pattern = `%${escapeSearchTerm(search)}%`;
-  const [{ data: profiles, error: profilesError }, { data: students, error: studentsError }] = await Promise.all([
+  const [
+    { data: profiles, error: profilesError },
+    { data: studentsByName, error: studentsByNameError },
+    { data: studentsByNis, error: studentsByNisError },
+  ] = await Promise.all([
     supabase.from('profiles').select('id').ilike('full_name', pattern),
+    supabase.from('students').select('member_id').ilike('full_name', pattern),
     supabase.from('students').select('member_id').ilike('nis', pattern),
   ]);
 
   if (profilesError) throw profilesError;
-  if (studentsError) throw studentsError;
+  if (studentsByNameError) throw studentsByNameError;
+  if (studentsByNisError) throw studentsByNisError;
 
   return {
     profileIds: (profiles ?? []).map(({ id }) => id),
-    memberIds: (students ?? []).map(({ member_id: memberId }) => memberId),
+    memberIds: [...new Set([...(studentsByName ?? []), ...(studentsByNis ?? [])]
+      .map(({ member_id: memberId }) => memberId)
+      .filter(Boolean))],
   };
+}
+
+export async function listAdminProfiles() {
+  const clientError = validateClient();
+  if (clientError) return clientError;
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, status, members!left(profile_id)')
+      .eq('role', 'admin')
+      .eq('status', 'active')
+      .is('members', null)
+      .order('full_name', { ascending: true })
+      .order('id', { ascending: true });
+
+    return {
+      data: error
+        ? null
+        : (data ?? []).map(({ id, full_name: fullName, role, status }) => ({
+          id,
+          full_name: fullName,
+          role,
+          status,
+        })),
+      error,
+    };
+  } catch (error) {
+    return { data: null, error };
+  }
 }
 
 export async function listMembers({
@@ -103,6 +141,45 @@ export async function listMembers({
       data: error ? null : { items: data ?? [], total: count ?? 0, page, pageSize },
       error,
     };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function createStudentMember({
+  fullName,
+  nis,
+  className = null,
+  academicYearId = null,
+  joinedAt = null,
+} = {}) {
+  const clientError = validateClient();
+  if (clientError) return clientError;
+
+  try {
+    const { data, error } = await supabase.rpc('create_student_member', {
+      p_full_name: fullName,
+      p_nis: nis,
+      p_class_name: className,
+      p_academic_year_id: academicYearId,
+      p_joined_at: joinedAt,
+    });
+    return { data, error };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+export async function createAdminMember({ profileId, joinedAt = null } = {}) {
+  const clientError = validateClient();
+  if (clientError) return clientError;
+
+  try {
+    const { data, error } = await supabase.rpc('create_admin_member', {
+      p_profile_id: profileId,
+      p_joined_at: joinedAt,
+    });
+    return { data, error };
   } catch (error) {
     return { data: null, error };
   }
